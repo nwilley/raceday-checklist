@@ -1,18 +1,13 @@
-# OS/editor
+bin/
+dist/
+node_modules/
 .DS_Store
 .idea/
-.vscode/
-
-# Go
-api/tmp/
-api/bin/
-api/*.exe
-
-# React / Node
-web/node_modules/
-web/dist/
-web/.env
-web/.env.local
-
-# Env
 .env
+.env.local
+.agents/
+.codex/
+api/bin/
+api/.env
+web/dist/
+web/node_modules/

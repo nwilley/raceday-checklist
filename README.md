@@ -1,6 +1,19 @@
-# My App
+# Raceday Checklist
 
-A full-stack web application built with **Go**, **Gin**, **React**, **TypeScript**, and **Vite**.
+Raceday Checklist is a full-stack web app for managing RC car race-day prep.
+It is meant to be a repeatable routine checklist for the tasks and maintenance
+needed to keep RC car(s) ready throughout an event.
+
+The checklist is organized around the rhythm of a race day:
+
+* Before practice
+* Before qualifying
+* Mid-qualifying
+* Before the main
+
+The goal is to make it easy to track what still needs attention between runs:
+car setup, maintenance, charging, tires, transponders, tools, and other race-day
+tasks.
 
 ## Tech Stack
 
@@ -9,19 +22,22 @@ A full-stack web application built with **Go**, **Gin**, **React**, **TypeScript
 * Go
 * Gin
 * REST API
+* MySQL database
 
 ### Frontend
 
 * React
 * TypeScript
 * Vite
+* Pico CSS
+* SCSS
 
 ## Project Structure
 
 ```text
-my-app/
+raceday-checklist/
 ├── api/        # Go + Gin backend
-├── web/        # React + Vite frontend
+├── web/        # React + TypeScript + Vite frontend
 ├── Makefile
 ├── .gitignore
 └── README.md
@@ -37,6 +53,7 @@ Make sure you have the following installed:
 * Node.js
 * npm
 * Git
+* MySQL
 
 Verify your installations:
 
@@ -45,6 +62,7 @@ go version
 node --version
 npm --version
 git --version
+mysql --version
 ```
 
 ## Backend Setup
@@ -107,16 +125,16 @@ Run the frontend:
 make web
 ```
 
-Or run each manually:
+Run backend tests:
 
 ```bash
-cd api
-go run ./cmd/server
+make test
 ```
 
+Format backend code:
+
 ```bash
-cd web
-npm run dev
+make fmt
 ```
 
 ## API Endpoints
@@ -135,6 +153,27 @@ Response:
 }
 ```
 
+### Checklist API
+
+```http
+GET /api/checklist
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "fuel",
+      "title": "Fuel and fluids checked",
+      "category": "Car",
+      "done": false
+    }
+  ]
+}
+```
+
 ### Hello API
 
 ```http
@@ -149,17 +188,35 @@ Response:
 }
 ```
 
-## Environment Variables
+## Database
 
-Environment configuration has not been added yet.
-
-Eventually, backend variables may live in:
+The backend is intended to connect to a MySQL database for persisted checklist
+data. Backend configuration is loaded from environment variables. For local
+development, place them in:
 
 ```text
 api/.env
 ```
 
+Use `api/.env.example` as the starting point:
+
+```dotenv
+PORT=8080
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=raceday
+DB_PASSWORD=raceday_password
+DB_NAME=raceday_checklist
+```
+
+`api/.env` is ignored by Git so local database credentials are not committed.
+
 Frontend variables may live in:
+
+```text
+web/.env
+```
 
 ```text
 web/.env
@@ -193,16 +250,6 @@ Run the built backend:
 ./bin/server
 ```
 
-## Git
-
-Initial commit:
-
-```bash
-git add .
-git commit -m "Initial Go Gin API and React app"
-```
-
 ## License
 
 This project does not currently specify a license.
-
