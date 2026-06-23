@@ -38,7 +38,9 @@ func TestMySQLRepositoryListDefaultEventItems(t *testing.T) {
 	}
 
 	assertQueryContains(t, database.execCalls[0].query, "INSERT INTO raceday_participants")
-	assertQueryContains(t, database.execCalls[0].query, "ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)")
+	assertQueryContains(t, database.execCalls[0].query, "SELECT raceday_events.id, ?")
+	assertQueryContains(t, database.execCalls[0].query, "ORDER BY event_date DESC, raceday_events.id DESC")
+	assertQueryContains(t, database.execCalls[0].query, "ON DUPLICATE KEY UPDATE raceday_participants.id = LAST_INSERT_ID(raceday_participants.id)")
 	assertQueryContains(t, database.queryCalls[0].query, "event_checklist_item_completions.participant_id = ?")
 	assertQueryContains(t, database.queryCalls[0].query, "checklist_sections.slug")
 	assertQueryContains(t, database.queryCalls[0].query, "ORDER BY checklist_sections.display_order, checklist_items.display_order, checklist_items.id")

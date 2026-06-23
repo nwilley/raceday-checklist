@@ -35,11 +35,11 @@ ORDER BY checklist_sections.display_order, checklist_items.display_order, checkl
 
 const upsertDefaultEventParticipantQuery = `
 INSERT INTO raceday_participants (event_id, client_id)
-SELECT id, ?
+SELECT raceday_events.id, ?
 FROM raceday_events
-ORDER BY event_date DESC, id DESC
+ORDER BY event_date DESC, raceday_events.id DESC
 LIMIT 1
-ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`
+ON DUPLICATE KEY UPDATE raceday_participants.id = LAST_INSERT_ID(raceday_participants.id)`
 
 const findDefaultEventItemQuery = `
 SELECT raceday_events.id, checklist_items.id
