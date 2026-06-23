@@ -41,6 +41,33 @@ func TestChecklistStorageDownMigrationOrder(t *testing.T) {
 	assertBefore(t, sql, "DROP TABLE IF EXISTS checklist_sections", "DROP TABLE IF EXISTS checklist_templates")
 }
 
+func TestAnonymousParticipantCompletionUpMigration(t *testing.T) {
+	sql := readMigration(t, "002_add_anonymous_participant_completion.up.sql")
+
+	for _, want := range []string{
+		"CREATE TABLE raceday_participants",
+		"UNIQUE KEY uq_raceday_participants_event_client (event_id, client_id)",
+		"CONSTRAINT fk_raceday_participants_event",
+		"ALTER TABLE event_checklist_item_completions",
+		"DROP INDEX uq_event_checklist_item_completions_event_item",
+		"ADD COLUMN participant_id BIGINT UNSIGNED NULL",
+		"ADD UNIQUE KEY uq_event_checklist_item_completions_participant_item (event_id, participant_id, item_id)",
+		"CONSTRAINT fk_event_checklist_item_completions_participant",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("expected participant migration to contain %q", want)
+		}
+	}
+}
+
+func TestAnonymousParticipantCompletionDownMigrationOrder(t *testing.T) {
+	sql := readMigration(t, "002_add_anonymous_participant_completion.down.sql")
+
+	assertBefore(t, sql, "DROP FOREIGN KEY fk_event_checklist_item_completions_participant", "DROP TABLE IF EXISTS raceday_participants")
+	assertBefore(t, sql, "DROP COLUMN participant_id", "DROP TABLE IF EXISTS raceday_participants")
+	assertBefore(t, sql, "ADD UNIQUE KEY uq_event_checklist_item_completions_event_item (event_id, item_id)", "DROP TABLE IF EXISTS raceday_participants")
+}
+
 func readMigration(t *testing.T, name string) string {
 	t.Helper()
 

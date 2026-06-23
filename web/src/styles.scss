@@ -130,6 +130,13 @@ h1 {
       display: block;
       line-height: 1.25;
     }
+
+    small {
+      display: block;
+      margin-top: 0.2rem;
+      color: var(--pico-muted-color);
+      font-weight: 700;
+    }
   }
 }
 

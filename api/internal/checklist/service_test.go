@@ -8,11 +8,11 @@ import (
 
 func TestServiceListItems(t *testing.T) {
 	expected := []Item{
-		{ID: "fuel", Title: "Fuel checked", Category: "Car", Done: true},
+		{ID: "set-droop", SectionID: "pre-practice", ItemID: "set-droop", Title: "Set Droop", Category: "Pre-practice", Done: true},
 	}
-	service := NewService(fakeRepository{items: expected})
+	service := NewService(&fakeRepository{items: expected})
 
-	items, err := service.ListItems(context.Background())
+	items, err := service.ListItems(context.Background(), "client-1")
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -26,29 +26,76 @@ func TestServiceListItems(t *testing.T) {
 }
 
 func TestServiceListItemsUnavailableWhenRepositoryReturnsNoItems(t *testing.T) {
-	service := NewService(fakeRepository{})
+	service := NewService(&fakeRepository{})
 
-	_, err := service.ListItems(context.Background())
+	_, err := service.ListItems(context.Background(), "client-1")
 	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
 	}
 }
 
+func TestServiceListItemsRequiresClientID(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	_, err := service.ListItems(context.Background(), "")
+	if !errors.Is(err, ErrInvalidClientID) {
+		t.Fatalf("expected ErrInvalidClientID, got %v", err)
+	}
+}
+
 func TestServiceListItemsPropagatesRepositoryError(t *testing.T) {
 	expected := errors.New("database failed")
-	service := NewService(fakeRepository{err: expected})
+	service := NewService(&fakeRepository{err: expected})
 
-	_, err := service.ListItems(context.Background())
+	_, err := service.ListItems(context.Background(), "client-1")
 	if !errors.Is(err, expected) {
 		t.Fatalf("expected repository error, got %v", err)
 	}
 }
 
-type fakeRepository struct {
-	items []Item
-	err   error
+func TestServiceUpdateItemCompletion(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository)
+
+	err := service.UpdateItemCompletion(context.Background(), "client-1", CompletionUpdate{
+		SectionID: "pre-practice",
+		ItemID:    "set-droop",
+		Done:      true,
+	})
+	if err != nil {
+		t.Fatalf("update item completion: %v", err)
+	}
+
+	if repository.clientID != "client-1" {
+		t.Fatalf("expected client id client-1, got %q", repository.clientID)
+	}
+	if repository.update.SectionID != "pre-practice" || repository.update.ItemID != "set-droop" || !repository.update.Done {
+		t.Fatalf("unexpected update: %#v", repository.update)
+	}
 }
 
-func (repository fakeRepository) ListDefaultEventItems(context.Context) ([]Item, error) {
+func TestServiceUpdateItemCompletionRequiresClientID(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	err := service.UpdateItemCompletion(context.Background(), "", CompletionUpdate{SectionID: "pre-practice", ItemID: "set-droop"})
+	if !errors.Is(err, ErrInvalidClientID) {
+		t.Fatalf("expected ErrInvalidClientID, got %v", err)
+	}
+}
+
+type fakeRepository struct {
+	items    []Item
+	err      error
+	clientID string
+	update   CompletionUpdate
+}
+
+func (repository fakeRepository) ListDefaultEventItems(_ context.Context, _ string) ([]Item, error) {
 	return repository.items, repository.err
+}
+
+func (repository *fakeRepository) UpdateDefaultEventItemCompletion(_ context.Context, clientID string, update CompletionUpdate) error {
+	repository.clientID = clientID
+	repository.update = update
+	return repository.err
 }

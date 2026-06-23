@@ -2,23 +2,27 @@ package checklist
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
 )
 
 func TestMySQLRepositoryListDefaultEventItems(t *testing.T) {
-	queryer := &fakeQueryer{
-		rows: &fakeRows{
-			values: [][]any{
-				{"fuel", "Fuel and fluids checked", "Car", true},
-				{"helmet", "Helmet packed", "Driver", false},
+	database := &fakeDatabase{
+		execResults: []sql.Result{fakeResult{id: 42}},
+		queryRows: []rows{
+			&fakeRows{
+				values: [][]any{
+					{"pre-practice", "set-droop", "Set Droop", "Pre-practice", true},
+					{"pre-qualifying", "set-droop", "Set Droop", "Pre-qualifying", false},
+				},
 			},
 		},
 	}
-	repository := newMySQLRepositoryWithQueryer(queryer)
+	repository := newMySQLRepositoryWithDatabase(database)
 
-	items, err := repository.ListDefaultEventItems(context.Background())
+	items, err := repository.ListDefaultEventItems(context.Background(), "client-1")
 	if err != nil {
 		t.Fatalf("list default event items: %v", err)
 	}
@@ -26,45 +30,92 @@ func TestMySQLRepositoryListDefaultEventItems(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(items))
 	}
-	if items[0] != (Item{ID: "fuel", Title: "Fuel and fluids checked", Category: "Car", Done: true}) {
+	if items[0] != (Item{ID: "set-droop", SectionID: "pre-practice", ItemID: "set-droop", Title: "Set Droop", Category: "Pre-practice", Done: true}) {
 		t.Fatalf("unexpected first item: %#v", items[0])
 	}
-	if items[1] != (Item{ID: "helmet", Title: "Helmet packed", Category: "Driver", Done: false}) {
+	if items[1] != (Item{ID: "set-droop", SectionID: "pre-qualifying", ItemID: "set-droop", Title: "Set Droop", Category: "Pre-qualifying", Done: false}) {
 		t.Fatalf("unexpected second item: %#v", items[1])
 	}
 
-	assertQueryContains(t, queryer.query, "ORDER BY event_date DESC, id DESC")
-	assertQueryContains(t, queryer.query, "LEFT JOIN event_checklist_item_completions")
-	assertQueryContains(t, queryer.query, "COALESCE(event_checklist_item_completions.done, checklist_items.default_done)")
-	assertQueryContains(t, queryer.query, "ORDER BY checklist_sections.display_order, checklist_items.display_order, checklist_items.id")
+	assertQueryContains(t, database.execCalls[0].query, "INSERT INTO raceday_participants")
+	assertQueryContains(t, database.execCalls[0].query, "ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)")
+	assertQueryContains(t, database.queryCalls[0].query, "event_checklist_item_completions.participant_id = ?")
+	assertQueryContains(t, database.queryCalls[0].query, "checklist_sections.slug")
+	assertQueryContains(t, database.queryCalls[0].query, "ORDER BY checklist_sections.display_order, checklist_items.display_order, checklist_items.id")
+	if database.queryCalls[0].args[0] != int64(42) {
+		t.Fatalf("expected participant id query arg 42, got %#v", database.queryCalls[0].args[0])
+	}
 }
 
-func TestMySQLRepositoryListDefaultEventItemsUnavailable(t *testing.T) {
-	repository := newMySQLRepositoryWithQueryer(&fakeQueryer{rows: &fakeRows{}})
+func TestMySQLRepositoryListDefaultEventItemsUnavailableWhenNoParticipantCreated(t *testing.T) {
+	repository := newMySQLRepositoryWithDatabase(&fakeDatabase{execResults: []sql.Result{fakeResult{id: 0}}})
 
-	_, err := repository.ListDefaultEventItems(context.Background())
+	_, err := repository.ListDefaultEventItems(context.Background(), "client-1")
 	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("expected ErrUnavailable, got %v", err)
 	}
 }
 
-func TestMySQLRepositoryListDefaultEventItemsQueryError(t *testing.T) {
-	expected := errors.New("query failed")
-	repository := newMySQLRepositoryWithQueryer(&fakeQueryer{err: expected})
+func TestMySQLRepositoryUpdateDefaultEventItemCompletion(t *testing.T) {
+	database := &fakeDatabase{
+		execResults: []sql.Result{
+			fakeResult{id: 42},
+			fakeResult{id: 0},
+		},
+		queryRows: []rows{
+			&fakeRows{values: [][]any{{int64(7), int64(99)}}},
+		},
+	}
+	repository := newMySQLRepositoryWithDatabase(database)
 
-	_, err := repository.ListDefaultEventItems(context.Background())
-	if !errors.Is(err, expected) {
-		t.Fatalf("expected query error, got %v", err)
+	err := repository.UpdateDefaultEventItemCompletion(context.Background(), "client-1", CompletionUpdate{
+		SectionID: "pre-practice",
+		ItemID:    "set-droop",
+		Done:      true,
+	})
+	if err != nil {
+		t.Fatalf("update completion: %v", err)
+	}
+
+	if len(database.execCalls) != 2 {
+		t.Fatalf("expected 2 exec calls, got %d", len(database.execCalls))
+	}
+	assertQueryContains(t, database.queryCalls[0].query, "checklist_sections.slug = ?")
+	assertQueryContains(t, database.queryCalls[0].query, "checklist_items.slug = ?")
+	assertQueryContains(t, database.execCalls[1].query, "INSERT INTO event_checklist_item_completions")
+	assertQueryContains(t, database.execCalls[1].query, "ON DUPLICATE KEY UPDATE")
+
+	wantArgs := []any{int64(7), int64(42), int64(99), true, true}
+	for i, want := range wantArgs {
+		if database.execCalls[1].args[i] != want {
+			t.Fatalf("expected completion arg %d to be %#v, got %#v", i, want, database.execCalls[1].args[i])
+		}
 	}
 }
 
-func TestMySQLRepositoryListDefaultEventItemsRowsError(t *testing.T) {
-	expected := errors.New("rows failed")
-	repository := newMySQLRepositoryWithQueryer(&fakeQueryer{rows: &fakeRows{err: expected}})
+func TestMySQLRepositoryUpdateDefaultEventItemCompletionNotFound(t *testing.T) {
+	database := &fakeDatabase{
+		execResults: []sql.Result{fakeResult{id: 42}},
+		queryRows:   []rows{&fakeRows{}},
+	}
+	repository := newMySQLRepositoryWithDatabase(database)
 
-	_, err := repository.ListDefaultEventItems(context.Background())
+	err := repository.UpdateDefaultEventItemCompletion(context.Background(), "client-1", CompletionUpdate{SectionID: "bad", ItemID: "missing"})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestMySQLRepositoryPropagatesQueryError(t *testing.T) {
+	expected := errors.New("query failed")
+	repository := newMySQLRepositoryWithDatabase(&fakeDatabase{
+		execResults: []sql.Result{fakeResult{id: 42}},
+		queryErr:    expected,
+	})
+
+	_, err := repository.ListDefaultEventItems(context.Background(), "client-1")
 	if !errors.Is(err, expected) {
-		t.Fatalf("expected rows error, got %v", err)
+		t.Fatalf("expected query error, got %v", err)
 	}
 }
 
@@ -75,15 +126,44 @@ func assertQueryContains(t *testing.T, query string, want string) {
 	}
 }
 
-type fakeQueryer struct {
+type databaseCall struct {
 	query string
-	rows  rows
-	err   error
+	args  []any
 }
 
-func (queryer *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (rows, error) {
-	queryer.query = query
-	return queryer.rows, queryer.err
+type fakeDatabase struct {
+	execCalls   []databaseCall
+	queryCalls  []databaseCall
+	execResults []sql.Result
+	queryRows   []rows
+	execErr     error
+	queryErr    error
+}
+
+func (database *fakeDatabase) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execCalls = append(database.execCalls, databaseCall{query: query, args: append([]any(nil), args...)})
+	if database.execErr != nil {
+		return nil, database.execErr
+	}
+	if len(database.execResults) == 0 {
+		return fakeResult{}, nil
+	}
+	result := database.execResults[0]
+	database.execResults = database.execResults[1:]
+	return result, nil
+}
+
+func (database *fakeDatabase) QueryContext(_ context.Context, query string, args ...any) (rows, error) {
+	database.queryCalls = append(database.queryCalls, databaseCall{query: query, args: append([]any(nil), args...)})
+	if database.queryErr != nil {
+		return nil, database.queryErr
+	}
+	if len(database.queryRows) == 0 {
+		return &fakeRows{}, nil
+	}
+	result := database.queryRows[0]
+	database.queryRows = database.queryRows[1:]
+	return result, nil
 }
 
 type fakeRows struct {
@@ -106,6 +186,8 @@ func (rows *fakeRows) Scan(dest ...any) error {
 			*target = current[i].(string)
 		case *bool:
 			*target = current[i].(bool)
+		case *int64:
+			*target = current[i].(int64)
 		default:
 			return errors.New("unsupported scan target")
 		}
@@ -120,4 +202,16 @@ func (rows *fakeRows) Close() error {
 
 func (rows *fakeRows) Err() error {
 	return rows.err
+}
+
+type fakeResult struct {
+	id int64
+}
+
+func (result fakeResult) LastInsertId() (int64, error) {
+	return result.id, nil
+}
+
+func (result fakeResult) RowsAffected() (int64, error) {
+	return 1, nil
 }
