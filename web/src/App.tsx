@@ -145,7 +145,6 @@ export function App() {
     <main className="container app-shell">
       <header className="summary">
         <div>
-          <p className="eyebrow">Track day prep</p>
           <h1>Raceday Checklist</h1>
         </div>
         <div className="progress" aria-label="Checklist progress">
