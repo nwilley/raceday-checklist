@@ -11,3 +11,4 @@ api/bin/
 api/.env
 web/dist/
 web/node_modules/
+/api/gin.log
