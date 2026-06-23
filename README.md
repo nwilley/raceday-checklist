@@ -212,6 +212,17 @@ DB_NAME=raceday_checklist
 
 `api/.env` is ignored by Git so local database credentials are not committed.
 
+After applying the database migrations, seed the starter race-day checklist:
+
+```bash
+cd api
+go run ./cmd/seed
+```
+
+The seed command is idempotent. It creates the default checklist template,
+ordered sections, starter items, and an initial race-day event without resetting
+item completion state.
+
 Frontend variables may live in:
 
 ```text

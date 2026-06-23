@@ -73,6 +73,38 @@ h1 {
 
 .checklist {
   display: grid;
+  gap: 1.4rem;
+}
+
+.checklist-section {
+  display: grid;
+  gap: 0.75rem;
+
+  header {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.2;
+  }
+
+  header span {
+    color: var(--pico-muted-color);
+    font-size: 0.9rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+}
+
+.section-items {
+  display: grid;
   gap: 0.75rem;
 
   .checklist-item {
@@ -94,15 +126,9 @@ h1 {
       margin: 0;
     }
 
-    strong,
-    small {
+    strong {
       display: block;
-    }
-
-    small {
-      margin-top: 0.2rem;
-      color: var(--pico-muted-color);
-      font-weight: 700;
+      line-height: 1.25;
     }
   }
 }
@@ -120,5 +146,9 @@ h1 {
   .progress {
     justify-items: stretch;
     text-align: left;
+  }
+
+  .checklist-section header {
+    align-items: start;
   }
 }

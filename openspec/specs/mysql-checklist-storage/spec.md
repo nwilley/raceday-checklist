@@ -78,3 +78,69 @@ The backend SHALL expose a database connection function that uses the existing d
 
 - **WHEN** `database.Connect` cannot open or ping MySQL
 - **THEN** it returns an error to the caller
+
+### Requirement: Read default event checklist
+
+The system SHALL support reading checklist items for a deterministic default raceday event from the persistent MySQL schema.
+
+#### Scenario: Read most recent event checklist
+
+- **WHEN** multiple raceday events exist
+- **THEN** the repository selects a deterministic default event using event date and row identity ordering
+
+#### Scenario: Return no default event
+
+- **WHEN** no raceday event exists
+- **THEN** the repository reports that no default event checklist is available
+
+### Requirement: Read ordered checklist items
+
+The system SHALL read checklist sections and items in their configured display order.
+
+#### Scenario: Ordered sections and items
+
+- **WHEN** a default event's template contains multiple sections and items with display order values
+- **THEN** repository results are ordered by section display order and then item display order
+
+#### Scenario: Section title as response category
+
+- **WHEN** checklist items are mapped to the existing flat API item model
+- **THEN** each item's category value comes from its checklist section title
+
+### Requirement: Read event completion state
+
+The system SHALL combine reusable checklist item rows with per-event completion state when reading a checklist.
+
+#### Scenario: Completed item
+
+- **WHEN** an event completion row marks an item done
+- **THEN** the repository returns that item with completion state set to done
+
+#### Scenario: Item without completion row
+
+- **WHEN** a template item has no completion row for the default event
+- **THEN** the repository returns that item with completion state set to not done
+
+#### Scenario: Independent event completion state
+
+- **WHEN** two events use the same checklist template item
+- **THEN** reading the default event uses only completion rows for the selected event
+
+### Requirement: Seeded data supports default checklist reads
+
+The persistent checklist schema SHALL support seeded starter data that can be read by the default checklist repository path.
+
+#### Scenario: Read seeded checklist
+
+- **WHEN** migrations have been applied and the seed command has completed
+- **THEN** the default checklist read returns the seeded Pre-practice, Pre-qualifying, Mid-qualifying maintenance, and Pre-main items
+
+#### Scenario: Seeded items default incomplete
+
+- **WHEN** seeded starter items have no event completion rows
+- **THEN** the default checklist read returns those items with completion state set to not done
+
+#### Scenario: Seeded ordering
+
+- **WHEN** the default checklist read returns seeded starter items
+- **THEN** the items are ordered by their seeded section display order and item display order

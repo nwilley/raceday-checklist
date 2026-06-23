@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"raceday-checklist/api/internal/checklist"
 	"raceday-checklist/api/internal/config"
 	"raceday-checklist/api/internal/database"
 	"raceday-checklist/api/internal/server"
@@ -25,7 +26,10 @@ func main() {
 	}
 	defer db.Close()
 
-	router := server.NewRouter()
+	checklistRepository := checklist.NewMySQLRepository(db)
+	checklistService := checklist.NewService(checklistRepository)
+
+	router := server.NewRouter(checklistService)
 	if err := router.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
