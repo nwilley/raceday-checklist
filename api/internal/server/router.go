@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"net/http"
+	"os"
+	"strings"
 
 	"raceday-checklist/api/internal/checklist"
 
@@ -10,6 +12,7 @@ import (
 )
 
 const raceDayClientHeader = "X-Raceday-Client"
+const corsAllowedOriginsEnv = "CORS_ALLOWED_ORIGINS"
 
 type ChecklistService interface {
 	ListItems(ctx context.Context, clientID string) ([]checklist.Item, error)
@@ -22,6 +25,7 @@ type completionRequest struct {
 
 func NewRouter(checklistService ChecklistService) *gin.Engine {
 	router := gin.Default()
+	router.Use(corsMiddleware())
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -59,6 +63,52 @@ func NewRouter(checklistService ChecklistService) *gin.Engine {
 	})
 
 	return router
+}
+
+func corsMiddleware() gin.HandlerFunc {
+	allowedOrigins := parseAllowedOrigins(os.Getenv(corsAllowedOriginsEnv))
+
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" && isOriginAllowed(origin, allowedOrigins) {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
+			c.Header("Access-Control-Allow-Methods", "GET, PATCH, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, "+raceDayClientHeader)
+		}
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func parseAllowedOrigins(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return []string{"*"}
+	}
+
+	parts := strings.Split(value, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		if origin != "" {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
+}
+
+func isOriginAllowed(origin string, allowedOrigins []string) bool {
+	for _, allowedOrigin := range allowedOrigins {
+		if allowedOrigin == "*" || allowedOrigin == origin {
+			return true
+		}
+	}
+	return false
 }
 
 func writeChecklistError(c *gin.Context, err error) {

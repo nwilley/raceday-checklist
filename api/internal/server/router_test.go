@@ -69,6 +69,46 @@ func TestChecklist(t *testing.T) {
 	}
 }
 
+func TestChecklistCorsHeaders(t *testing.T) {
+	t.Setenv(corsAllowedOriginsEnv, "https://app.example.com")
+	router := NewRouter(&fakeChecklistService{})
+	request := httptest.NewRequest(http.MethodGet, "/api/checklist", nil)
+	request.Header.Set("Origin", "https://app.example.com")
+	request.Header.Set(raceDayClientHeader, "client-1")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Fatalf("expected CORS origin header, got %q", response.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if response.Header().Get("Access-Control-Allow-Methods") != "GET, PATCH, OPTIONS" {
+		t.Fatalf("expected CORS methods header, got %q", response.Header().Get("Access-Control-Allow-Methods"))
+	}
+	if response.Header().Get("Access-Control-Allow-Headers") != "Content-Type, X-Raceday-Client" {
+		t.Fatalf("expected CORS headers header, got %q", response.Header().Get("Access-Control-Allow-Headers"))
+	}
+}
+
+func TestChecklistCorsPreflight(t *testing.T) {
+	t.Setenv(corsAllowedOriginsEnv, "https://app.example.com")
+	router := NewRouter(&fakeChecklistService{})
+	request := httptest.NewRequest(http.MethodOptions, "/api/checklist/items/pre-practice/set-droop", nil)
+	request.Header.Set("Origin", "https://app.example.com")
+	request.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+	request.Header.Set("Access-Control-Request-Headers", "content-type, x-raceday-client")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", response.Code)
+	}
+	if response.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Fatalf("expected CORS origin header, got %q", response.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
 func TestChecklistMissingClientID(t *testing.T) {
 	router := NewRouter(&fakeChecklistService{listErr: checklist.ErrInvalidClientID})
 	request := httptest.NewRequest(http.MethodGet, "/api/checklist", nil)
