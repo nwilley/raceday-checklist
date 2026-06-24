@@ -20,6 +20,11 @@ type ChecklistSection = {
 
 const clientStorageKey = 'racedayClientId'
 const clientHeader = 'X-Raceday-Client'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+
+function apiUrl(path: string) {
+  return `${apiBaseUrl}${path}`
+}
 
 function getClientId() {
   const existing = window.localStorage.getItem(clientStorageKey)
@@ -46,7 +51,7 @@ export function App() {
   useEffect(() => {
     async function loadChecklist() {
       try {
-        const response = await fetch('/api/checklist', {
+        const response = await fetch(apiUrl('/api/checklist'), {
           headers: {
             [clientHeader]: getClientId(),
           },
@@ -108,7 +113,9 @@ export function App() {
 
     try {
       const response = await fetch(
-        `/api/checklist/items/${encodeURIComponent(item.sectionId)}/${encodeURIComponent(item.itemId)}`,
+        apiUrl(
+          `/api/checklist/items/${encodeURIComponent(item.sectionId)}/${encodeURIComponent(item.itemId)}`,
+        ),
         {
           method: 'PATCH',
           headers: {
